@@ -95,6 +95,23 @@ def _nn_cosine_distance(x, y):
     distances = _cosine_distance(x, y)
     return distances.min(axis=0)
 
+def _nn_iou_metric(a, b):
+    """
+    Compute the IoU between two sets of bboxes
+    Parameters
+    ----------
+    a : array_like
+        An Nx4 matrix of N samples of bbox in (min x min y max x max y) format.
+    b : array_like
+        An Lx4 matrix of L samples of bbox in (min x min y max x max y) format.
+    """
+    #TODO: 代价矩阵的计算需要实现
+    print(f"predicted: {a}, {type(a)}")
+    #
+    print(f"detection: {b}, {type(b)}")
+    # # for i in b:
+    ...
+
 
 class NearestNeighborDistanceMetric(object):
     """
@@ -130,11 +147,13 @@ class NearestNeighborDistanceMetric(object):
         else:
             raise ValueError(
                 "Invalid metric; must be either 'euclidean' or 'cosine'")
+        self._nn_iou_metric = _nn_iou_metric
         self.matching_threshold = matching_threshold
         self.budget = budget
         self.samples = {}
+        self.box_samples = {}
 
-    def partial_fit(self, features, targets, active_targets):
+    def partial_fit(self, features, targets, active_targets, pre_bboxs, box_targets):
         """Update the distance metric with new data.
 
         Parameters
@@ -147,11 +166,17 @@ class NearestNeighborDistanceMetric(object):
             A list of targets that are currently present in the scene.
 
         """
+        # self.box_samples.setdefault(target, pre_bboxs)
         for feature, target in zip(features, targets):
             self.samples.setdefault(target, []).append(feature)
             if self.budget is not None:
                 self.samples[target] = self.samples[target][-self.budget:]
+
+        for bbox, active_target in zip(pre_bboxs, box_targets):
+            self.box_samples.setdefault(active_target, [bbox])
+
         self.samples = {k: self.samples[k] for k in active_targets}
+        # self.box_samples = {k: self.box_samples[k] for k in active_targets}
 
     def distance(self, features, targets, bbox):
         """Compute distance between features and targets.
@@ -163,6 +188,9 @@ class NearestNeighborDistanceMetric(object):
         targets : List[int]
             A list of targets to match the given `features` against.
 
+        bbox : List[int]
+            A list of detection_bbox in (min x min y max x max y) format
+
         Returns
         -------
         ndarray
@@ -171,10 +199,10 @@ class NearestNeighborDistanceMetric(object):
             `targets[i]` and `features[j]`.
 
         """
-        # TODO: 当前只是用特征代价矩阵，需要更改为使用特征和bbox的代价矩阵
-        print(bbox)
         feature_cost_matrix = np.zeros((len(targets), len(features)))
+        IoU_cost_matrix = np.zeros((len(targets), len(features)))
         for i, target in enumerate(targets):
             feature_cost_matrix[i, :] = self._metric(self.samples[target], features)
-        # print(cost_matrix)
+            IoU_cost_matrix[i, :] = self._nn_iou_metric(self.box_samples[target], bbox)
+
         return feature_cost_matrix

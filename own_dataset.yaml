@@ -1,0 +1,5 @@
+train: /mnt/zlj-own-disk/train.txt
+val: /mnt/zlj-own-disk/test.txt
+
+names:
+  0: excavator

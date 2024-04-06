@@ -52,15 +52,19 @@ class Tracker:
 
         # Update distance metric.
         active_targets = [t.track_id for t in self.tracks if t.is_confirmed()]
-        features, targets = [], []
+        features, targets, predicted_box, box_targets= [], [], [],[]
         for track in self.tracks:
             if not track.is_confirmed():
                 continue
             features += track.features
             targets += [track.track_id for _ in track.features]
+            box_targets += [track.track_id]
+            predicted_box.append(track.predicted_bbox)
             track.features = []
+            track.predicted_bbox = []
+
         self.metric.partial_fit(
-            np.asarray(features), np.asarray(targets), active_targets)
+            np.asarray(features), np.asarray(targets), active_targets, np.asarray(predicted_box), np.asarray(box_targets))
 
 
 

@@ -17,9 +17,9 @@ class TrackState:
 
 
 class Track:
-    """
-    A single target track with state space `(x, y, a, h)` and associated
+    """ated
     velocities, where `(x, y)` is the center of the bounding box, `a` is the
+    A single target track with state space `(x, y, a, h)` and associ
     aspect ratio and `h` is the height.
 
     Parameters
@@ -77,7 +77,7 @@ class Track:
         self.features = []
         if feature is not None:
             self.features.append(feature)
-
+        self.predicted_bbox = []
         self._n_init = n_init
         self._max_age = max_age
 
@@ -123,6 +123,13 @@ class Track:
         self.mean, self.covariance = kf.predict(self.mean, self.covariance)
         self.age += 1
         self.time_since_update += 1
+        x_c, y_c, a, h = self.mean[0:4]
+        x_min = x_c - a * h / 2
+        x_max = x_c + a * h / 2
+        y_min = y_c - h / 2
+        y_max = y_c + h / 2
+        self.predicted_bbox = [x_min, y_min, x_max, y_max]
+        # print(f"predicted: \n \t{self.predicted_bbox}")
 
     def update(self, kf, detection):
         """Perform Kalman filter measurement update step and update the feature
