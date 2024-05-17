@@ -52,14 +52,14 @@ class Tracker:
 
         # Update distance metric.
         active_targets = [t.track_id for t in self.tracks if t.is_confirmed()]
-        features, targets, predicted_box, box_targets= [], [], [],[]
+        features, targets, predicted_box, box_targets = [], [], [], []
         for track in self.tracks:
             if not track.is_confirmed():
                 continue
             features += track.features
+            predicted_box += track.predicted_bbox
             targets += [track.track_id for _ in track.features]
-            box_targets += [track.track_id]
-            predicted_box.append(track.predicted_bbox)
+            box_targets += [track.track_id for _ in track.predicted_bbox]
             track.features = []
             track.predicted_bbox = []
 
@@ -80,7 +80,7 @@ class Tracker:
 
             cost_matrix = linear_assignment.gate_cost_matrix(
                 self.kf, cost_matrix, tracks, dets, track_indices,
-                detection_indices)
+                detection_indices, only_position=True)
 
             return cost_matrix
 

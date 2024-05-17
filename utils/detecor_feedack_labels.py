@@ -1,6 +1,6 @@
 import os
 
-from YOLOv8.Detector import Detector
+from YOLOv8.predictor import Detector
 
 img_path = "/mnt/zlj-own-disk/No93Video/North_Bund2"
 

@@ -6,9 +6,8 @@ import torch
 from torchvision import transforms
 from PIL import Image
 
-
 class BaseExtractor():
-    def __init__(self, weight_path=None, device="cuda:0"):
+    def __init__(self, weight_path=None, device="cpu"):
         if not torch.cuda.is_available():
             self.device = torch.device("cpu")
             print("cuda is not available, use cpu instead")
@@ -19,6 +18,16 @@ class BaseExtractor():
             state_dict = torch.load(weight_path)
             self.model.load_state_dict(state_dict)
 
+    def list_divide(self, imglist):
+        res_list = []
+        for i in imglist:
+            assert len(i) == 3
+            for j in i:
+                cv2.cvtColor(j, cv2.COLOR_BGR2RGB)
+                j = Image.fromarray(j)
+                res_list.append(self._img_transform(j))
+        return res_list
+
     @property
     def _img_transform(self):
         return transforms.Compose([
@@ -28,14 +37,15 @@ class BaseExtractor():
                                  std=[0.229, 0.224, 0.225])
         ])
 
-    def __call__(self, img: numpy.ndarray):
-        cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        print()
-        img = Image.fromarray(img)
-        img_tensor = self._img_transform(img)
-        img_tensor = img_tensor.unsqueeze(0).to(self.device)
+    def __call__(self, imgs: list()):
+        ims_tensor_list = self.list_divide(imgs)
+        # img_tensor = self._img_transform(img)
+        img_tensors = torch.stack(ims_tensor_list, dim=0)
+        img_tensors = img_tensors.to(self.device)
         self.model.to(self.device)
-        ret = self.model(img_tensor).cpu().detach().numpy().flatten()
+        ret = self.model(img_tensors).cpu().detach()
+        ret = ret.view(int(ret.shape[0]/3), -1).numpy()
+        assert len(ret)==len(imgs)
         return ret
 
 # if __name__ == "__main__":

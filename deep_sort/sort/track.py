@@ -128,8 +128,8 @@ class Track:
         x_max = x_c + a * h / 2
         y_min = y_c - h / 2
         y_max = y_c + h / 2
-        self.predicted_bbox = [x_min, y_min, x_max, y_max]
-        # print(f"predicted: \n \t{self.predicted_bbox}")
+        self.predicted_bbox.append([x_min, y_min, x_max, y_max])
+
 
     def update(self, kf, detection):
         """Perform Kalman filter measurement update step and update the feature
@@ -146,6 +146,7 @@ class Track:
         self.mean, self.covariance = kf.update(
             self.mean, self.covariance, detection.to_xyah())
         self.features.append(detection.feature)
+        self.predicted_bbox.append(detection.to_tlbr())
         self.cls_ = detection.cls_
 
         self.hits += 1

@@ -44,13 +44,14 @@ def min_cost_matching(
     return matches, unmatched_tracks, unmatched_detections
 
 
-def matching_cascade(
+def \
+        matching_cascade(
         distance_metric, max_distance, cascade_depth, tracks, detections,
         track_indices=None, detection_indices=None):
     """Run matching cascade.
 
     Parameters
-    ----------
+
     distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray
         The distance metric is given a list of tracks and detections as well as
         a list of N track indices and M detection indices. The metric should

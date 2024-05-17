@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import sys
 
-from YOLOv8.Detector import Detector
+from YOLOv8.predictor import Detector
 
 from deep_sort import build_tracker
 from utils.draw import draw_boxes
@@ -69,6 +69,7 @@ class VideoTracker(object):
             
             self.save_video_path = os.path.join(self.args["save_path"], "results.avi")
             self.save_results_path = os.path.join(self.args["save_path"], "results.txt")
+            self.save_images_path = os.path.join(self.args["save_path"], "images")
             
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
             self.writer = cv2.VideoWriter(self.save_video_path, fourcc, 20, (self.im_width, self.im_height))
@@ -131,6 +132,10 @@ class VideoTracker(object):
             # save results
                 write_results(self.save_results_path, results, 'mot')
 
+            if self.args["save_frame"]:
+                os.makedirs(self.save_images_path, exist_ok=True)
+                cv2.imwrite(os.path.join(self.save_images_path, f'{idx_frame}.jpg'), ori_im)
+
             # logging
             self.logger.info("time: {:.03f}s, fps: {:.03f}, detection numbers: {}, tracking numbers: {}" \
                              .format(end - start, 1 / (end - start), bbox_xywh.shape[0], len(outputs)))           
@@ -141,12 +146,20 @@ if __name__ == "__main__":
     cfg.merge_from_file("/home/zlj/Excavator_ReID/configs/deep_sort.yaml")
     
     with VideoTracker(cfg, 
-                      video_path="/mnt/zlj-own-disk/No93Video/121241-123840.mp4",
-                      yolo_weights="/home/zlj/ultralytics/runs/detect/train14/weights/best.pt",
-                      frame_interval = 30,
-                      display = False,
-                      display_width = 720,
-                      display_height = 360, 
+                      video_path="/mnt/zlj-own-disk/No93Video/123905-130643.mp4",
+                      yolo_weights="/home/zlj/ultralytics/runs/detect/train29/weights/best.pt",
+                      frame_interval=3,
+                      display=False,
+                      display_width=720,
+                      display_height=360,
                       use_cuda=True,
-                      save_path=None) as vdo_trk:
+                      save_path='./2_ori_fi3',
+                      save_frame=False) as vdo_trk:
         vdo_trk.run()
+
+
+
+"""
+Iou和外观特征比例的修改放在了nn_matching.py中
+gate的修改在tracker.py的_match函数中
+"""

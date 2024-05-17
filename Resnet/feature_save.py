@@ -89,6 +89,7 @@ class Feature_bank:
 
 
 class Feature_map(Feature_bank):
+    message = numpy.array((1, 6144+2))
     def __init__(self):
         self.bank = {}
         self.timestamp = {}

@@ -92,10 +92,45 @@ def _nn_cosine_distance(x, y):
         smallest cosine distance to a sample in `x`.
 
     """
+    # print(f"{x}, {type(x)}_cosine_distance")
     distances = _cosine_distance(x, y)
+
     return distances.min(axis=0)
 
-def _nn_iou_metric(a, b):
+def IoU(a, b):
+    """
+    Compute the IoU between two bbox
+    Parameters:
+    ----------
+    a: array_like
+        A bbox in (min x min y max x max y) format.
+    b: array_like
+        A bbox in (min x min y max x max y) format.
+    """
+    x1_min, y1_min, x1_max, y1_max = a
+    x2_min, y2_min, x2_max, y2_max = b
+    max_x_min, max_y_min = max(x1_min, x2_min), max(y1_min, y2_min)
+    min_x_max, min_y_max = min(x1_max, x2_max), min(y1_max, y2_max)
+    inter_area = max(0, min_x_max - max_x_min) * max(0, min_y_max - max_y_min)
+    union_area = (x1_max - x1_min) * (y1_max - y1_min) + (x2_max - x2_min) * (y2_max - y2_min) - inter_area
+    IoU = inter_area / union_area
+
+    return IoU
+
+
+def _nn_iou(ax, b):
+    """
+    """
+    min_iou = 1
+    # ax = ax.tolist()
+    for a in ax:
+        iou = IoU(a, b)
+        if iou < min_iou:
+            min_iou = iou
+    return min_iou
+
+
+def _nn_iou_metric(a, bx):
     """
     Compute the IoU between two sets of bboxes
     Parameters
@@ -105,12 +140,11 @@ def _nn_iou_metric(a, b):
     b : array_like
         An Lx4 matrix of L samples of bbox in (min x min y max x max y) format.
     """
-    #TODO: 代价矩阵的计算需要实现
-    print(f"predicted: {a}, {type(a)}")
-    #
-    print(f"detection: {b}, {type(b)}")
-    # # for i in b:
-    ...
+    restult = []
+    # print(f"{a}, {type(a)}_iou")
+    for i in bx:
+        restult.append(_nn_iou(a, i))
+    return 1. - np.array(restult)
 
 
 class NearestNeighborDistanceMetric(object):
@@ -173,10 +207,13 @@ class NearestNeighborDistanceMetric(object):
                 self.samples[target] = self.samples[target][-self.budget:]
 
         for bbox, active_target in zip(pre_bboxs, box_targets):
-            self.box_samples.setdefault(active_target, [bbox])
+            self.box_samples.setdefault(active_target, []).append(bbox)
+            # print(self.box_samples[active_target])
+            if len(self.box_samples[active_target]) > 10:
+                self.box_samples[active_target] = self.box_samples[active_target][-10:]
 
         self.samples = {k: self.samples[k] for k in active_targets}
-        # self.box_samples = {k: self.box_samples[k] for k in active_targets}
+        self.box_samples = {k: self.box_samples[k] for k in active_targets}
 
     def distance(self, features, targets, bbox):
         """Compute distance between features and targets.
@@ -205,4 +242,7 @@ class NearestNeighborDistanceMetric(object):
             feature_cost_matrix[i, :] = self._metric(self.samples[target], features)
             IoU_cost_matrix[i, :] = self._nn_iou_metric(self.box_samples[target], bbox)
 
-        return feature_cost_matrix
+        # print(f"{feature_cost_matrix},1")
+        # print(f"{IoU_cost_matrix},2")
+        cost_matrix = 0.9 * feature_cost_matrix + 0.1 * IoU_cost_matrix
+        return cost_matrix

@@ -1,6 +1,13 @@
 import os
+import time
 from typing import Dict
+
+import numpy
 import numpy as np
+import cv2
+from .log import get_logger
+from tqdm import tqdm
+
 
 # from utils.log import get_logger
 
@@ -52,6 +59,61 @@ def write_results(filename, results, data_type):
 #                 line = save_format.format(frame=frame_id, id=track_id, x1=x1, y1=y1, x2=x2, y2=y2, w=w, h=h, score=1.0)
 #                 f.write(line)
 #     logger.info('Save results to {}'.format(filename))
+
+def build_reid_dataset(track_result_path, video_path, save_path):
+    os.makedirs(save_path, exist_ok=True)
+
+    def get_results(f, last_result):
+        results = []
+        results.append(last_result)
+        now_result = f.readline().split(',')
+        while now_result[0] == last_result[0]:
+            if now_result[0] == '':
+                break
+            results.append(now_result)
+            last_result = now_result
+            now_result = f.readline().split(',')
+        return results, now_result
+
+    vdo = cv2.VideoCapture()
+
+    def output_image(results, ori_im, save_path):
+        # result: [frame_id, id, x1, y1, w, h]
+        for result in results:
+            x = float(result[2]) + float(result[4]) / 2
+            y = float(result[3]) + float(result[5]) / 2
+            # 稍微将bbox扩大
+            w = float(result[4]) * 1.1
+            h = float(result[5]) * 1.1
+            if w < 100 or h < 100:
+                return
+
+            x1 = max(0, int(x - w / 2))
+            x2 = min(ori_im.shape[1], int(x + w / 2))
+            y1 = max(0, int(y - h / 2))
+            y2 = min(ori_im.shape[0], int(y + h / 2))
+            img = ori_im[y1:y2, x1:x2]
+
+            os.makedirs(os.path.join(save_path, result[1]), exist_ok=True)
+            cv2.imwrite(os.path.join(save_path, result[1], f'{result[0]}.jpg'), img)
+            print(f"save {os.path.join(save_path, result[1], f'{result[0]}.jpg')}")
+
+    track_results_f = open(track_result_path, 'r')
+    results, last_result = get_results(track_results_f, track_results_f.readline().split(','))
+    idx_frame = 0
+    vdo.open(video_path)
+    while vdo.grab():
+        # print(vdo.grab())
+        _, ori_im = vdo.retrieve()
+        if results[0][0] == '':
+            break
+        if idx_frame != int(results[0][0]):
+            idx_frame += 1
+        else:
+            output_image(results, ori_im, save_path)
+            results, last_result = get_results(track_results_f, last_result)
+            idx_frame += 1
+    track_results_f.close()
 
 
 def read_results(filename, data_type: str, is_gt=False, is_ignore=False):
@@ -131,3 +193,115 @@ def unzip_objs(objs):
     tlwhs = np.asarray(tlwhs, dtype=float).reshape(-1, 4)
 
     return tlwhs, ids, scores
+
+
+class BaseTrackResultReader:
+    def __init__(self, video_path, track_result_path, data_type='mot', batch=None):
+        self.vdo = cv2.VideoCapture()
+        self.video_path = video_path
+        self.track_results_f = open(track_result_path, 'r')
+        self.save_path = None
+        self.logger = get_logger('root')
+        self.batch = batch
+        self.batch_content = None
+        if self.batch:
+            self.frame_ids = []
+            self.track_ids = []
+            self.boxes = []
+            self.imgs = []
+    def __enter__(self):
+        assert os.path.isfile(self.video_path), f'Error: {self.video_path} is not a valid file.'
+        self.vdo.open(self.video_path)
+        self.im_width = int(self.vdo.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        assert self.vdo.isOpened(), f'Error: Cannot open {self.video_path}.'
+        if self.save_path:
+            os.makedirs(self.save_path, exist_ok=True)
+            ...
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            print(exc_val)
+
+    def _batch_reset(self):
+        self.frame_ids.clear()
+        self.track_ids.clear()
+        self.boxes.clear()
+        self.imgs.clear()
+
+    def _batch_work(self, img, results):
+        return img
+
+    def _tail_work(self):
+        ...
+
+    def _work(self, img, results):
+        return img
+
+    def worker(self, img, results):
+        if self.batch:
+            self._batch_work(img, results)
+        else:
+            self._work(img, results)
+
+    def _get_results(self, f, last_result):
+        """
+        read the track results in mot format.
+        results: list of all the results in the same frame.
+        last_result: the last result in the frame.
+        info:
+            result format:{frame},{id},{x1},{y1},{w},{h},-1,-1,-1,-1
+        """
+        results = []
+        results.append(last_result)
+        now_result = f.readline().split(',')
+        while now_result[0] == last_result[0]:
+            if now_result[0] == '':
+                break
+            results.append(now_result)
+            last_result = now_result
+            now_result = f.readline().split(',')
+        return results, now_result
+
+    def rus(self):
+        total_frame = int(self.vdo.get(cv2.CAP_PROP_FRAME_COUNT))
+        idx_frame = 0
+        results, last_result = self._get_results(self.track_results_f, self.track_results_f.readline().split(','))
+        with tqdm(total=total_frame, desc='Processing', unit='frame') as pbar:
+            while self.vdo.grab():
+                idx_frame += 1
+                pbar.update(1)
+                if results[0][0] == '':
+                    break
+                if idx_frame - 1 != int(results[0][0]):
+                # if idx_frame - 1 != int(results[0][0]) or idx_frame < 37000:
+                    continue
+                else:
+                    _, ori_im = self.vdo.retrieve()
+                    res = self.worker(ori_im, results)
+                    results, last_result = self._get_results(self.track_results_f, last_result)
+                if results[0][0] == '':
+                    break
+                if idx_frame - 1 != int(results[0][0]):
+                    continue
+
+
+                else:
+                    _, ori_im = self.vdo.retrieve()
+                    res = self.worker(ori_im, results)
+                    results, last_result = self._get_results(self.track_results_f, last_result)
+
+            # batch没满的善后工作
+            if self.batch:
+                   self._tail_work()
+
+
+
+if __name__ == "__main__":
+    # reader = BaseTrackResultReader('/mnt/zlj-own-disk/No93Video/121241-123840.mp4', '/mnt/zlj-own-disk/fineDetector_results/my_fi9/results.txt')
+
+    with BaseTrackResultReader('/mnt/zlj-own-disk/No93Video/153002-153717.mp4',
+                               '/mnt/zlj-own-disk/fineDetector_results/my_fi9/results.txt',
+                               batch=64) as test_track_reader:
+        test_track_reader.rus()
