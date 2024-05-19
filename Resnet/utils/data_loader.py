@@ -11,7 +11,7 @@ class DataLoader:
         self.data_transforms = {
             'train': transforms.Compose([
                 transforms.RandomResizedCrop(imgsize * 0.875),
-                # transforms.Resize(imgsize),
+                transforms.Resize(imgsize),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -37,7 +37,7 @@ class DataLoader:
         self.class_names = self.image_datasets['train'].classes
 
 if __name__ == '__main__':
-    test_data = DataLoader()
+    test_data = DataLoader('/mnt/zlj-own-disk/imgs/', imgsize=512, batch_size=32)
     # TODO:
 
 

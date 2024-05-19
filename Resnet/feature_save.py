@@ -1,16 +1,39 @@
 import os
+import time
 
 import numpy
+import numpy as np
 
 
-class Feature_bank:
+class Feature_map:
     def __init__(self):
+        self.data = np.empty(shape=(0, 6146))
+
+
+    def _add_feature(self, sig_result):
+        self.data = np.concatenate((self.data, sig_result), axis=0)
+
+    @property
+    def result(self):
+        return self.data
+
+    def massage_build(self, frame_id, track_id, features):
+        assert len(track_id) == len(frame_id) == len(features)
+        s_massage = numpy.zeros(shape=(len(track_id), features.shape[1] + 2))
+        s_massage[:, 0], s_massage[:, 1], s_massage[:, 2:] = numpy.array(frame_id), numpy.array(track_id), features
+
+        return s_massage
+
+    def __call__(self, frame_id, track_id, features):
+        s_massage = self.massage_build(frame_id, track_id, features)
+        self._add_feature(s_massage)
+
+
+class Feature_bank(Feature_map):
+    def __init__(self):
+        super(Feature_bank, self).__init__()
         self.bank = {}
-        self.timestamp = {}
         self.temper = {}
-        self.bank_path = os.path.join(os.getcwd(), "feature_bank")
-        os.makedirs(self.bank_path, exist_ok=True)
-        self.bank_data = {}
 
     def _cosine_distance(self, a, b):
         return 1 - numpy.dot(a, b) / (numpy.linalg.norm(a) * numpy.linalg.norm(b))
@@ -25,16 +48,10 @@ class Feature_bank:
                 distance += self._cosine_distance(j, features[i])
         return distance * 2 / (len(features) * (len(features) - 1))
 
-    def _add_feature(self, track_id, frame_id, target_feature):
-        self.bank[track_id].append(target_feature.tolist())
-        self.timestamp[track_id].append(frame_id)
-        # print(len(self.timestamp[track_id]))
-        self.temper[track_id] = 240
-
     def _feature_check(self, track_id, target_feature):
         if self.temper[track_id] == 0:
             # print(f'{track_id} freezed!')
-        # 温度降到冰点，重置
+            # 温度降到冰点，重置
             return True
 
         if len(self.bank[track_id]) < 30:
@@ -58,61 +75,26 @@ class Feature_bank:
         else:
             return False
 
-    def _target_feature_build(self, features):
-        target_feature = numpy.zeros((2048 * 3))
-        for i in range(3):
-            target_feature[i * 2048: i * 2048 + 2048] = features[i]
-        return target_feature
+    def bank_update(self, massage):
+        self.temper[massage[1]] = 40
+        x = massage[2:].reshape(1, -1)
+        self.bank[massage[1]] = numpy.concatenate((self.bank[massage[1]], x), axis=0)
 
-    def __call__(self, track_id, frame_id, features):
-        target_feature = self._target_feature_build(features)
-
-        if track_id not in self.bank:
-            self.bank[track_id] = []
-            self.timestamp[track_id] = []
-            self._add_feature(track_id, frame_id, target_feature)
-
-        elif len(self.bank[track_id]) < 2:
-            self._add_feature(track_id, frame_id, target_feature)
-
-        else:
-            if self._feature_check(track_id, target_feature):
-                self._add_feature(track_id, frame_id, target_feature)
+    def _add_feature(self, massages):
+        for massage in massages:
+            if massage[1] not in self.bank:
+                self.bank[massage[1]] = numpy.empty(shape=(0, 6144))
+                self.bank_update(massage)
             else:
-                # 加入失败，降温
-                # print(f'{track_id} temper lose 1')
-                self.temper[track_id] -= 1
+                if self._feature_check(track_id=massage[1], target_feature=massage[2:]):
+                    self.bank_update(massage)
+                else:
+                    self.temper[massage[1]] -= 1
 
     @property
     def result(self):
-        return self.bank, self.timestamp
+        return self.bank
 
-
-class Feature_map(Feature_bank):
-    message = numpy.array((1, 6144+2))
-    def __init__(self):
-        self.bank = {}
-        self.timestamp = {}
-        self.temper = {}
-        self.map_path = os.path.join(os.getcwd(), "feature_map")
-        os.makedirs(self.map_path, exist_ok=True)
-        self.bank_data = {}
-
-    def _add_feature(self, track_id, frame_id, target_feature):
-        self.bank_data[track_id] = open(self.bank[track_id], 'ab')
-        self.bank_data[track_id].write(target_feature.tobytes())
-        self.bank_data[track_id].close()
-        self.timestamp[track_id].append(frame_id)
-
-    def __call__(self, track_id, frame_id, features):
-        target_feature = self._target_feature_build(features)
-
-        if track_id not in self.bank:
-            self.bank[track_id] = os.path.join(self.map_path, track_id)
-            self.timestamp[track_id] = []
-            self._add_feature(track_id, frame_id, target_feature)
-
-        else:
-            self._add_feature(track_id, frame_id, target_feature)
-
-
+if __name__ == "__main__":
+    feature_map = Feature_map("feature_bank")
+    feature_map([1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], numpy.random.rand(6, 6144))

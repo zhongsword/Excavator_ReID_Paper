@@ -1,14 +1,15 @@
 import cv2
 import numba
 import numpy as np
-
+import os
 from YOLOv8.predictor import Segmentor
 from utils.io import BaseTrackResultReader
 from Resnet.predictor import BaseExtractor
-from Resnet.feature_save import Feature_bank
 from Resnet.feature_save import Feature_map
+from Resnet.feature_save import Feature_bank
 import numpy
 import json
+import time
 
 import faulthandler
 faulthandler.enable()
@@ -25,13 +26,20 @@ def list_duplicates(ls_in, num=1):
 
 class reid_feature_extractor(BaseTrackResultReader):
 
-    def __init__(self, video_path, track_result_path, seg_weight_path, batch=None):
+    def __init__(self, video_path, track_result_path, seg_weight_path, batch=None, save_path=None):
         super().__init__(video_path, track_result_path, batch=batch)
         self.segmentor = Segmentor(seg_weight_path, device='cuda:0')
         self.extractor = BaseExtractor(device='cuda:1')
         self.feature_map = Feature_map()
         self.feature_bank = Feature_bank()
         self.worker_done = False
+        if save_path is None:
+            save_path = "feature_result"
+            save_dir = os.path.join(os.getcwd(), save_path)
+            os.makedirs(save_dir, exist_ok=True)
+            time_index = time.time()
+            self.map_sava_path = os.path.join(save_dir, "{time}_map.npy".format(time=time_index))
+            self.bank_sava_path = os.path.join(save_dir, "{time}_bank.npy".format(time=time_index))
 
     def bbox_scare(self, box, scale=1.1):
         x, y, w, h = box
@@ -66,8 +74,8 @@ class reid_feature_extractor(BaseTrackResultReader):
             res = self.segmentor(self.frame_ids, self.imgs, self.boxes, self.track_ids)
             if res:
                 features = self.extractor(res[2])
-                self.feature_bank(res[0], res[1], features)
                 self.feature_map(res[0], res[1], features)
+                self.feature_bank(res[0], res[1], features)
             self._batch_reset()
 
     def _work(self, img, results):
@@ -109,8 +117,11 @@ if __name__ == "__main__":
     with reid_feature_extractor(video_path='/home/zlj/Excavator_ReID/121241-123840.mp4',
                                 seg_weight_path='/home/zlj/ultralytics/runs/segment/train3/weights/best.pt',
                                 track_result_path='/home/zlj/Excavator_ReID/results.txt',
-                                batch=3) as extractor:
+                                batch=4) as extractor:
         extractor.rus()
+        ...
+        numpy.save(extractor.map_sava_path, extractor.map)
+        numpy.save(extractor.bank_sava_path, extractor.bank)
         # json.dump(extractor.map[0], open('feature_map.json', 'w'))
         # json.dump(extractor.map[1], open('map_time.json', 'w'))
         # json.dump(extractor.bank[0], open('feature_bank.json', 'w'))
