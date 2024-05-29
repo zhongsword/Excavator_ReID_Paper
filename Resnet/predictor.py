@@ -5,6 +5,7 @@ from .model.resnet_nofc import resnet50
 import torch
 from torchvision import transforms
 from PIL import Image
+from collections import OrderedDict
 
 class BaseExtractor():
     def __init__(self, weight_path=None, device="cpu"):
@@ -13,10 +14,16 @@ class BaseExtractor():
             print("cuda is not available, use cpu instead")
         else:
             self.device = torch.device(device)
-        self.model = resnet50(cut_at_pooling=True)
+        self.model = resnet50()
         if weight_path:
             state_dict = torch.load(weight_path)
+            # new_state_dict = OrderedDict()
+            # for k, v in state_dict.items():
+            #     name = k[7:]  # 去除 'module.' 前缀
+            #     new_state_dict[name] = v
+            state_dict.pop('classifier.weight')
             self.model.load_state_dict(state_dict)
+            self.model.cut_at_pooling=True
 
     def list_divide(self, imglist):
         res_list = []

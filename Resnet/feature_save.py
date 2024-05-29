@@ -93,8 +93,15 @@ class Feature_bank(Feature_map):
 
     @property
     def result(self):
-        return self.bank
+        res = numpy.empty(shape=(0, 6145))
+        for k, v in self.bank.items():
+            for vv in v:
+                x = numpy.concatenate(([k], vv))
+                x = numpy.reshape(x, newshape=(1, -1))
+                res = numpy.concatenate([res, x], axis=0)
+        return res
 
 if __name__ == "__main__":
-    feature_map = Feature_map("feature_bank")
+    feature_map = Feature_bank()
     feature_map([1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], numpy.random.rand(6, 6144))
+    res = feature_map.result

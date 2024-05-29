@@ -49,17 +49,17 @@ class ResNet(nn.Module):
 
         # 如果不在全连接层之后截断，添加新的全连接层
         if not self.cut_at_pooling:
-            self.num_features = num_features
-            self.norm = norm
-            self.dropout = dropout
-            self.has_embedding = num_features > 0
-            self.num_classes = num_classes
+            self.num_features = num_features       # 自定义MLP的输入维度，如果为0则使用原版resnet输入维度
+            self.norm = norm                       # 归一化
+            self.dropout = dropout                 # dropout
+            self.has_embedding = num_features > 0  #
+            self.num_classes = num_classes         # 类别数
 
             # 原版resnet的全连接层的输入维度
-            out_planes = resnet.fc.in_features
+            out_planes = resnet.fc.in_features     # 2048
 
             # Append new layers
-            # 使用embedding则，使用全连接层将特征维度降低到num_features
+            # 如果使用embedding，添加一个全连接层和一个BatchNorm层
             # 否则直接和分类器相连
             if self.has_embedding:
                 self.feat = nn.Linear(out_planes, self.num_features)
@@ -74,6 +74,8 @@ class ResNet(nn.Module):
 
             if self.dropout > 0:
                 self.drop = nn.Dropout(self.dropout)
+
+            # 添加一个全连接层, 用于分类
             if self.num_classes > 0:
                 self.classifier = nn.Linear(self.num_features, self.num_classes, bias=False)
                 init.normal_(self.classifier.weight, std=0.001)
@@ -83,6 +85,9 @@ class ResNet(nn.Module):
         if not pretrained:
             self.reset_params()
 
+    """
+    backbone -> pooling -> batch_norm -> classifier
+    """
     def forward(self, x):
         # bs = x.size(0)
         x = self.base(x)
@@ -98,15 +103,19 @@ class ResNet(nn.Module):
         else:
             bn_x = self.feat_bn(x)
 
-        if (self.training is False):
-            bn_x = F.normalize(bn_x)
-            return bn_x
+        # if used the is training
+        # if (self.training is False):
+        #     bn_x = F.normalize(bn_x)
+            # return bn_x
 
+        # norm false
         if self.norm:
             bn_x = F.normalize(bn_x)
+        # has_embedding false
         elif self.has_embedding:
             bn_x = F.relu(bn_x)
 
+        # npdropout
         if self.dropout > 0:
             bn_x = self.drop(bn_x)
 
