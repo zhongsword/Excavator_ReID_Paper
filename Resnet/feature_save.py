@@ -9,7 +9,6 @@ class Feature_map:
     def __init__(self):
         self.data = np.empty(shape=(0, 6146))
 
-
     def _add_feature(self, sig_result):
         self.data = np.concatenate((self.data, sig_result), axis=0)
 
@@ -44,7 +43,7 @@ class Feature_bank(Feature_map):
             return 0
 
         for i in range(len(features) - 1):
-            for j in features[i+1:]:
+            for j in features[i + 1:]:
                 distance += self._cosine_distance(j, features[i])
         return distance * 2 / (len(features) * (len(features) - 1))
 
@@ -101,7 +100,9 @@ class Feature_bank(Feature_map):
                 res = numpy.concatenate([res, x], axis=0)
         return res
 
+
 if __name__ == "__main__":
     feature_map = Feature_bank()
     feature_map([1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], numpy.random.rand(6, 6144))
-    res = feature_map.result
+    numpy.save("./test", feature_map.result)
+    print(numpy.load("./test.npy"))

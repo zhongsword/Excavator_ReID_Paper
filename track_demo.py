@@ -146,15 +146,15 @@ if __name__ == "__main__":
     cfg.merge_from_file("/home/zlj/Excavator_ReID/configs/deep_sort.yaml")
     
     with VideoTracker(cfg, 
-                      video_path="/mnt/zlj-own-disk/No93Video/123905-130643.mp4",
+                      video_path="1.mp4",
                       yolo_weights="/home/zlj/ultralytics/runs/detect/train29/weights/best.pt",
                       frame_interval=3,
                       display=False,
                       display_width=720,
                       display_height=360,
                       use_cuda=True,
-                      save_path='./2_ori_fi3',
-                      save_frame=False) as vdo_trk:
+                      save_path='/D/1fi3',
+                      save_frame=True) as vdo_trk:
         vdo_trk.run()
 
 

@@ -1,5 +1,7 @@
 import os.path
 
+import numpy as np
+
 from utils.data_loader import DataLoader
 from model import resnet_nofc
 import torch
@@ -20,35 +22,38 @@ output_reid = '/home/zlj/Excavator_ReID/Resnet/Checkpoints/'
 # 模型
 model = resnet_nofc.resnet50(num_classes=len(datasets.class_names))
 model.classifier.requires_grad_(False)  # 冻结MLP的参数，只训练resnet的参数
-# model = nn.DataParallel(model, device_ids=devices)
-device = torch.device('cuda:0')
-model = model.to(device)
+model = nn.DataParallel(model, device_ids=devices)
+# device = torch.device('cuda:0')
+model = model.to(devices[0])
 
 # 损失函数
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
 
-# 训练
-# save_dir = os.path.join(output_reid, f"{time.time()}")
-# os.makedirs(save_dir, exist_ok=True)
+#训练
+save_dir = os.path.join(output_reid, f"{time.time()}")
+os.makedirs(save_dir, exist_ok=True)
+epochs = 40
+LOSS = 20
+
+# # resume_train
+# save_dir = os.path.join(output_reid, '1717512518.453511')
+# checkpoint_path = os.path.join(save_dir, 'last.pth')
 # epochs = 100
-# LOSS = 20
+# checkpoint = torch.load(checkpoint_path)
+# # new_state_dict = OrderedDict()
+# # for k, v in checkpoint.items():
+# #     name = k[7:]  # 去除 'module.' 前缀
+# #     new_state_dict[name] = v
+# model.load_state_dict(checkpoint)
+# LOSS = 1.1719
 
-# resume_train
-save_dir = os.path.join(output_reid, '1716180655.7538185')
-checkpoint_path = os.path.join(save_dir, 'last.pth')
-epochs = 93
-checkpoint = torch.load(checkpoint_path, map_location=device)
-new_state_dict = OrderedDict()
-for k, v in checkpoint.items():
-    name = k[7:]  # 去除 'module.' 前缀
-    new_state_dict[name] = v
-
-model.load_state_dict(new_state_dict)
-LOSS = 1.1719
+train_log = np.zeros(shape=(epochs, 2))
+val_log = np.zeros(shape=(epochs, 2))
 
 
 for epoch in range(epochs):
+
     for phase in ('train', 'val'):
         if phase == 'train':
             model.train()
@@ -66,8 +71,8 @@ for epoch in range(epochs):
         # 迭代数据
         for inputs, labels in tqdm(datasets.dataloaders[phase],
                                    desc="epoch %d/%d" % (epoch, epochs)):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+            inputs = inputs.to(devices[0])
+            labels = labels.to(devices[0])
 
             optimizer.zero_grad()
 
@@ -81,14 +86,21 @@ for epoch in range(epochs):
                     optimizer.step()
 
             running_loss += loss.item() * inputs.size(0)
-            running_corrects += torch.sum(preds==labels.data)
+            running_corrects += torch.sum(preds == labels.data)
         epoch_loss = running_loss / len(datasets.image_datasets[phase])
         epoch_acc = running_corrects.double() / len(datasets.image_datasets[phase])
 
         tqdm.write(f'{phase.capitalize()} LOSS: {epoch_loss:.4f} ACC: {epoch_acc:.4f}')
+        if phase == 'train':
+            train_log[epoch, 0] = epoch_loss
+            train_log[epoch, 1] = epoch_acc
+        else:
+            val_log[epoch, 0] = epoch_loss
+            val_log[epoch, 1] = epoch_acc
         if phase == "val":
             torch.save(model.state_dict(), os.path.join(save_dir, 'last.pth'))
             if epoch_loss < LOSS:
                 LOSS = epoch_loss
                 torch.save(model.state_dict(), os.path.join(save_dir, 'best.pth'))
-
+                np.save(os.path.join(save_dir, 'train_log.npy'), train_log)
+                np.save(os.path.join(save_dir, 'val_log.npy'), val_log)

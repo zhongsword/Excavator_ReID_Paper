@@ -9,7 +9,7 @@ from .log import get_logger
 from tqdm import tqdm
 
 
-# from utils.log import get_logger
+# from data_utils.log import get_logger
 
 
 def write_results(filename, results, data_type):
@@ -196,7 +196,30 @@ def unzip_objs(objs):
 
 
 class BaseTrackResultReader:
+    """
+    The BaseTrackResultReader class is designed to facilitate reading and processing tracked object results from a
+    specified video file and its corresponding tracking result file. It supports both sequential and batch processing
+    modes, allowing for flexibility in managing and analyzing tracking data.
+
+    To complete the class implementation, the following methods must be implemented:
+        worker: The mian processing method for each frame of the video.
+        batch_work: The processing method for batch data (if batch mode is on).
+    """
     def __init__(self, video_path, track_result_path, data_type='mot', batch=None):
+        """
+        Parameters:
+        - video_path (str): Path to the video file.
+        - track_result_path (str): Path to the text file containing tracking results.
+        - data_type (str, optional): Type of tracking data format; default is 'mot'.
+        - batch (bool, optional): Enables or disables batch processing mode; default is None.
+
+        Attributes Initialized:
+        - vdo: A VideoCapture object to read frames from the video.
+        - save_path: Directory path for saving processed content (if provided).
+        - logger: Logger instance for logging messages.
+        - batch_content: Placeholder for batch processing content.
+        - frame_ids, track_ids, boxes, imgs: Lists to store batch data (if batch mode is on).
+        """
         self.vdo = cv2.VideoCapture()
         self.video_path = video_path
         self.track_results_f = open(track_result_path, 'r')
@@ -209,6 +232,7 @@ class BaseTrackResultReader:
             self.track_ids = []
             self.boxes = []
             self.imgs = []
+
     def __enter__(self):
         assert os.path.isfile(self.video_path), f'Error: {self.video_path} is not a valid file.'
         self.vdo.open(self.video_path)
@@ -230,13 +254,13 @@ class BaseTrackResultReader:
         self.boxes.clear()
         self.imgs.clear()
 
-    def _batch_work(self, img, results):
+    def _batch_work(self, img: numpy.array, results: list):
         return img
 
     def _tail_work(self):
         ...
 
-    def _work(self, img, results):
+    def _work(self, img: numpy.array, results: list):
         return img
 
     def worker(self, img, results):
